@@ -7,12 +7,17 @@ __version__ = '0.0.0'
 
 import re
 import argparse
+import chardet
 from zipfile import ZipFile
+from colorama import init, Fore
 
 class PatternAction(argparse.Action):
     def __call__(self, parser, namespace, values, option_string=None):
         try:
-            compiled_pattern = re.compile(values)
+            flags = 0
+            if namespace.opt_ic:
+                flags = re.IGNORECASE
+            compiled_pattern = re.compile(values, flags=flags)
         except Exception:
             raise argparse.ArgumentError(self, 'Invalid pattern string')
         setattr(namespace, self.dest, compiled_pattern)
@@ -26,17 +31,38 @@ class ContextAction(argparse.Action):
         else:
             setattr(namespace, self.dest, (values, values))
 
-def grep(args):
+
+def detect_enc(zfo, fname):
+    with zfo.open(fname) as f:
+        sample = f.read(10240)
+        enc = chardet.detect(sample)
+    return enc['encoding']
+
+
+def zip_grep(zf, args):
     reg = args.pattern
+    print_format = '{zip_name}/{file_name}:{line_number}:{text}'
+
+    with ZipFile(zf) as zfo:
+        for fname in zfo.namelist():
+            enc = detect_enc(zfo, fname)
+            if enc is None:
+                print("'{0}' is probably binary file. Skiped.".format(fname))
+                continue
+            with zfo.open(fname) as f:
+                line_number = 0
+                for line in f:
+                    line_number += 1
+                    line = line.decode(enc).strip()
+                    if reg.search(line):
+                        print(print_format.format(zip_name=zf, file_name=fname, line_number=line_number, text=line))
+
+def grep(args):
     for zf in args.files:
-        with ZipFile(zf) as zfo:
-            for fname in zfo.namelist():
-                with zfo.open(fname) as f:
-                    for line in f:
-                        if reg.search(line.decode('cp932')):
-                            print(line)
+        zip_grep(zf, args)
 
 if __name__ == '__main__':
+    init()
     p = argparse.ArgumentParser(add_help=False)
     p.add_argument('pattern',
                    action=PatternAction, metavar='PATTERN',
