@@ -41,7 +41,10 @@ def detect_enc(zfo, fname):
     return enc['encoding']
 
 def do_grep(zf, zfo, fname, enc, args):
-    print_format = '{zip_name}/{file_name}:{line_number}:{text}'
+    if args.opt_out_fname:
+        print_format = '{zip_name}/{file_name}:{line_number}:{text}'
+    else:
+        print_format = '{text}'
 
     with zfo.open(fname) as f:
         line_number = 0
