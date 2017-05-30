@@ -40,21 +40,6 @@ def detect_enc(zfo, fname):
         enc = chardet.detect(sample)
     return enc['encoding']
 
-def do_grep(zf, zfo, fname, enc, args):
-    if args.opt_out_fname:
-        print_format = '{zip_name}/{file_name}:{line_number}:{text}'
-    else:
-        print_format = '{text}'
-
-    with zfo.open(fname) as f:
-        line_number = 0
-        for line in f:
-            line_number += 1
-            line = line.decode(enc, errors='replace').strip()
-            line = grep_format(line, args)
-            if line:
-                print(print_format.format(zip_name=zf, file_name=fname, line_number=line_number, text=line))
-
 def grep_format(line, args):
     reg = args.pattern
     m = reg.search(line)
@@ -70,7 +55,32 @@ def grep_format(line, args):
     else:
         return line
 
+def do_grep(zf, zfo, fname, enc, args):
+    opt_cnt = args.opt_cnt
+    opt_q = args.opt_q
+    match_cnt = 0
+    if args.opt_out_fname:
+        print_format = '{zip_name}/{file_name}:{line_number}:{text}'
+    else:
+        print_format = '{text}'
+
+    with zfo.open(fname) as f:
+        line_number = 0
+        for line in f:
+            line_number += 1
+            line = line.decode(enc, errors='replace').strip()
+            line = grep_format(line, args)
+            if line:
+                match_cnt += 1
+                if not opt_cnt and not opt_q:
+                    print(print_format.format(zip_name=zf, file_name=fname, line_number=line_number, text=line))
+
+    return match_cnt
+
 def zip_grep(zf, zfo, args):
+    opt_cnt = args.opt_cnt
+    opt_out_fname = args.opt_out_fname
+    match_cnt_total = 0
     flist = zfo.namelist()
     if args.opt_file_include is not None:
         flist = [fnmatch.filter(flist, g) for g in args.opt_file_include]
@@ -84,12 +94,19 @@ def zip_grep(zf, zfo, args):
         if enc is None:
             print("'{0}' is probably binary file. Skiped.".format(fname), file=sys.stderr)
             continue
-        do_grep(zf, zfo, fname, enc, args)
+        match_cnt = do_grep(zf, zfo, fname, enc, args)
+        match_cnt_total += match_cnt
+        if opt_cnt and opt_out_fname and match_cnt > 0:
+            print('{zip_name}/{file_name}:{cnt}'.format(zip_name=zf, file_name=fname, cnt=match_cnt))
+
+    return match_cnt_total
 
 def agrep(args):
+    match_cnt_total = 0
     for zf in args.files:
         with ZipFile(zf) as zfo:
-            zip_grep(zf, zfo, args)
+            match_cnt_total += zip_grep(zf, zfo, args)
+    return match_cnt_total
 
 if __name__ == '__main__':
     init()
@@ -150,4 +167,11 @@ if __name__ == '__main__':
 
     args = p.parse_args()
     print(args)
-    agrep(args)
+    match_cnt_total = agrep(args)
+    if args.opt_cnt and not args.opt_out_fname:
+        print(match_cnt_total)
+    if args.opt_q:
+        if match_cnt_total > 0:
+            sys.exit(0)
+        else:
+            sys.exit(1)
