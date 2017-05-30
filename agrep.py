@@ -9,6 +9,7 @@ import re
 import sys
 import argparse
 import chardet
+import fnmatch
 from zipfile import ZipFile
 from colorama import init, Fore
 
@@ -67,7 +68,15 @@ def grep_format(line, args):
         return line
 
 def zip_grep(zf, zfo, args):
-    for fname in zfo.namelist():
+    flist = zfo.namelist()
+    if args.opt_file_include is not None:
+        flist = [fnmatch.filter(flist, g) for g in args.opt_file_include]
+        flist = [flatten for inner in flist for flatten in inner]
+    if args.opt_file_exclude is not None:
+        elist = [fnmatch.filter(flist, g) for g in args.opt_file_exclude]
+        elist = [flatten for inner in elist for flatten in inner]
+        flist = [f for f in flist if f not in elist]
+    for fname in flist:
         enc = detect_enc(zfo, fname)
         if enc is None:
             print("'{0}' is probably binary file. Skiped.".format(fname), file=sys.stderr)
@@ -130,10 +139,10 @@ if __name__ == '__main__':
 
     g5 = p.add_argument_group('File and Directory Selection')
     g5.add_argument('--exclude',
-                  action='store', dest='opt_file_exclude', metavar='GLOB',
+                  action='append', dest='opt_file_exclude', metavar='GLOB',
                   help='Skip files whose base name matches GLOB (using wildcard matching).')
     g5.add_argument('--include',
-                  action='store', dest='opt_file_include', metavar='GLOB',
+                  action='append', dest='opt_file_include', metavar='GLOB',
                   help='Search only files whose base name matches GLOB')
 
     args = p.parse_args()
