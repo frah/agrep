@@ -55,7 +55,10 @@ def grep_format(line, args):
     reg = args.pattern
     m = reg.search(line)
     if m is None:
-        return None
+        if args.opt_inv:
+            return line
+        else:
+            return None
 
     if args.opt_color:
         sp = m.span()
