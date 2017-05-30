@@ -6,6 +6,7 @@ agrep - Archive Grep
 __version__ = '0.0.0'
 
 import re
+import sys
 import argparse
 import chardet
 from zipfile import ZipFile
@@ -38,28 +39,42 @@ def detect_enc(zfo, fname):
         enc = chardet.detect(sample)
     return enc['encoding']
 
-
-def zip_grep(zf, args):
-    reg = args.pattern
+def do_grep(zf, zfo, fname, enc, args):
     print_format = '{zip_name}/{file_name}:{line_number}:{text}'
 
-    with ZipFile(zf) as zfo:
-        for fname in zfo.namelist():
-            enc = detect_enc(zfo, fname)
-            if enc is None:
-                print("'{0}' is probably binary file. Skiped.".format(fname))
-                continue
-            with zfo.open(fname) as f:
-                line_number = 0
-                for line in f:
-                    line_number += 1
-                    line = line.decode(enc).strip()
-                    if reg.search(line):
-                        print(print_format.format(zip_name=zf, file_name=fname, line_number=line_number, text=line))
+    with zfo.open(fname) as f:
+        line_number = 0
+        for line in f:
+            line_number += 1
+            line = line.decode(enc, errors='replace').strip()
+            line = grep_format(line, args)
+            if line:
+                print(print_format.format(zip_name=zf, file_name=fname, line_number=line_number, text=line))
 
-def grep(args):
+def grep_format(line, args):
+    reg = args.pattern
+    m = reg.search(line)
+    if m is None:
+        return None
+
+    if args.opt_color:
+        sp = m.span()
+        return line[:sp[0]] + Fore.RED + line[sp[0]:sp[1]] + Fore.RESET + line[sp[1]:]
+    else:
+        return line
+
+def zip_grep(zf, zfo, args):
+    for fname in zfo.namelist():
+        enc = detect_enc(zfo, fname)
+        if enc is None:
+            print("'{0}' is probably binary file. Skiped.".format(fname), file=sys.stderr)
+            continue
+        do_grep(zf, zfo, fname, enc, args)
+
+def agrep(args):
     for zf in args.files:
-        zip_grep(zf, args)
+        with ZipFile(zf) as zfo:
+            zip_grep(zf, zfo, args)
 
 if __name__ == '__main__':
     init()
@@ -120,4 +135,4 @@ if __name__ == '__main__':
 
     args = p.parse_args()
     print(args)
-    grep(args)
+    agrep(args)
