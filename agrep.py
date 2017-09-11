@@ -3,7 +3,7 @@
 agrep - Archive Grep
 """
 
-__version__ = '0.0.0'
+__version__ = '0.1.0'
 
 import re
 import sys
@@ -166,7 +166,7 @@ if __name__ == '__main__':
                   help='Search only files whose base name matches GLOB')
 
     args = p.parse_args()
-    print(args)
+    #print(args)
     match_cnt_total = agrep(args)
     if args.opt_cnt and not args.opt_out_fname:
         print(match_cnt_total)
